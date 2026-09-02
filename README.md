@@ -2,56 +2,33 @@
 
 ## Purpose
 
-This project demonstrates the implementation of an end-to-end ETL pipeline in Databricks using Medallion Architecture (Bronze, Silver, Gold). The pipeline ingests raw Instacart grocery order data, applies data quality and transformation rules, and produces analytics-ready dimensional tables for reporting and business analysis.
+This project demonstrates how to build an end-to-end ETL pipeline in Databricks using Medallion Architecture (Bronze, Silver, Gold).
 
-Key objectives include:
+The goal is not simply to load the Instacart dataset into tables, but to transform raw transactional data into a structured analytical model that supports reporting, exploration, and business decision-making.
 
-- Building a scalable ETL workflow
-- Applying data quality validation and cleansing
-- Implementing Medallion Architecture using Delta tables
-- Creating analytics-ready fact and dimension tables
-- Supporting reproducible and maintainable data processing
+This repository documents not only what was built, but also why specific design decisions were made so that others can understand, reproduce, and extend the pipeline.
 
 ---
 
-## Project Context
+## Business Problem
 
-The Instacart dataset consists of multiple normalized source files, including:
+The Instacart dataset contains grocery orders, products, aisles, and departments stored across multiple source files.
 
-- orders
-- order_products__prior
-- order_products__train
-- products
-- aisles
-- departments
+While the dataset is useful for analysis, it is highly normalized and not structured for easy reporting.
 
-The goal of this project was not to replicate the source schema but to transform the raw data into a dimensional model that supports business reporting and analysis.
+The objective of this project is to create a repeatable pipeline that transforms raw source data into analytics-ready datasets capable of answering business questions such as:
 
-### Business Questions
-
-This pipeline was designed to support the following business questions:
-
-1. Which products and departments are purchased most frequently?
-2. How does purchasing behavior change by day of week and hour of day?
-3. Which products have the highest reorder rates?
-4. What additional insights can be generated from customer purchasing behavior?
-
-### Target Data Model
-
-A star schema was provided as the target analytical model:
-
-- Fact_Order
-- Dim_Product
-- Dim_Order_Time
-- Dim_User
-
-To support this model, the raw Instacart data was transformed through Bronze, Silver, and Gold layers.
+1. Which products are purchased most frequently?
+2. Which departments generate the highest number of purchases?
+3. How does purchasing behavior vary by day of week and hour of day?
+4. Which products have the highest reorder rates?
+5. What additional customer purchasing patterns can be identified?
 
 ---
 
 ## Architecture
 
-The pipeline follows a Medallion Architecture pattern.
+The pipeline follows the Medallion Architecture pattern.
 
 ```text
 Raw CSV Files
@@ -77,80 +54,85 @@ Raw CSV Files
  └─────────┘
 ```
 
+Each layer has a specific responsibility.
+
 ### Bronze Layer
 
-The Bronze layer stores raw source data with minimal transformation.
-
-Tables:
-
-- bronze_orders
-- bronze_order_products_prior
-- bronze_order_products_train
-- bronze_products
-- bronze_aisles
-- bronze_departments
+Captures source data with minimal transformation.
 
 Purpose:
 
-- Preserve source data
+- Preserve raw records
 - Maintain data lineage
-- Support reproducibility
-- Enable reprocessing if needed
+- Support auditability
+- Enable reproducible processing
 
 ### Silver Layer
 
-The Silver layer applies cleaning, standardization, validation, and integration logic.
-
-Tables:
-
-- clean_orders
-- clean_order_products
-- clean_products
-- clean_aisles
-- clean_departments
-- clean_order_merge
+Applies data quality rules and business transformations.
 
 Purpose:
 
-- Remove duplicates
-- Standardize data types
-- Handle null and invalid values
-- Consolidate related datasets
-- Prepare data for dimensional modeling
+- Standardize datasets
+- Clean source data
+- Integrate related datasets
+- Prepare data for modeling
 
 ### Gold Layer
 
-The Gold layer contains analytics-ready tables aligned with the target star schema.
-
-Tables:
-
-- dim_products
-- dim_users
-- dim_order_time
-- fact_orders
+Creates analytics-ready tables.
 
 Purpose:
 
-- Support business reporting
-- Improve query performance
-- Simplify analytical workflows
+- Support reporting
+- Simplify analysis
+- Improve usability for business users
+- Deliver trusted datasets
+
+---
+
+## Source Data
+
+The Instacart dataset contains six source files:
+
+```text
+orders
+order_products__prior
+order_products__train
+products
+aisles
+departments
+```
+
+Each file captures a different part of the ordering process.
+
+The Bronze layer preserves these files in their original structure before any transformations are applied.
 
 ---
 
 ## Silver Layer Design Decisions
 
-### Why I Combined Prior and Train Datasets
+### Why Prior and Train Were Combined
 
-The Instacart dataset was originally created for a machine learning competition and separates product-order records into two files:
+The Instacart dataset was originally created for a machine learning competition.
 
-- `order_products__prior`
-- `order_products__train`
+Product purchases are separated into two files:
 
-The `prior` dataset contains historical customer purchases, while the `train` dataset contains purchases from a customer's most recent labeled order.
+```text
+order_products__prior
+order_products__train
+```
 
-Although the datasets serve different purposes in machine learning workflows, both contain valid product purchase transactions and share the same schema.
+The distinction exists because the dataset was designed for reorder prediction.
 
-Because the goal of this project was analytics engineering rather than reorder prediction, I combined both datasets into a single Silver table:
+- Prior records represent historical customer purchases.
+- Train records represent a customer's next labeled purchase used for model training.
+
+For analytics purposes, however, both datasets describe the same business event:
+
+> A customer purchased a product within an order.
+
+Because this project focuses on analytics engineering rather than machine learning, both datasets were consolidated into a single Silver-layer dataset.
 
 ```text
 order_products__prior
@@ -161,28 +143,44 @@ order_products__train
 clean_order_products
 ```
 
-This created a unified transaction dataset that simplified downstream transformations and dimensional modeling while preserving all available purchase records.
+This decision created a single source of truth for purchased products and simplified downstream transformations.
 
-The Instacart test dataset was not included because product-level records are not provided.
+Benefits include:
 
-### Why I Created clean_order_merge
+- Reduced pipeline complexity
+- Less duplicated transformation logic
+- Easier fact table creation
+- Simpler analytical queries
 
-The target dimensional model requires both order-level and product-level attributes in the fact table.
+The Instacart test dataset was not included because product-level records are not provided in the source files.
 
-Order information originates from:
+---
+
+### Why clean_order_merge Was Created
+
+Order information and product information exist in separate datasets.
+
+Order attributes include information such as:
 
 ```text
-orders
+user_id
+order_number
+order_dow
+order_hour_of_day
+days_since_prior_order
 ```
 
-Product purchase information originates from:
+Product-purchase attributes include information such as:
 
 ```text
-order_products__prior
-order_products__train
+product_id
+add_to_cart_order
+reordered
 ```
 
-To simplify fact table creation, I joined these datasets in the Silver layer:
+Answering business questions requires both perspectives to exist together.
+
+To support dimensional modeling, order-level data was joined with product-level data to create a consolidated transactional dataset.
 
 ```text
 clean_orders
@@ -193,266 +191,71 @@ clean_order_products
 clean_order_merge
 ```
 
-The resulting dataset contains:
+Creating this intermediate table centralized transformation logic and reduced the need for repeated joins later in the pipeline.
 
-- order_id
-- user_id
-- order_number
-- order_dow
-- order_hour_of_day
-- days_since_prior_order
-- product_id
-- add_to_cart_order
-- reordered
-
-Creating this consolidated table reduced repeated joins in the Gold layer and established a reusable foundation for dimensional modeling.
+This dataset became the primary source for creating Gold-layer fact tables.
 
 ---
 
 ## Data Model
 
-### Dimension Tables
+The final model was designed to support reporting and business analysis.
 
-#### dim_products
+### Dimensions
 
-Stores product attributes.
+#### Dim_Product
 
-**Columns**
+Contains descriptive information about products.
 
-- product_id
-- product_name
-- aisle_id
-- department_id
+Purpose:
 
-#### dim_users
+- Categorize purchases
+- Support product-level reporting
+- Connect purchases to aisles and departments
 
-Stores customer-related attributes.
+#### Dim_User
 
-**Columns**
+Contains customer identifiers.
 
-- user_id
+Purpose:
 
-#### dim_order_time
+- Support customer-level analysis
+- Enable user segmentation
+- Track purchasing patterns
 
-Stores order timing attributes.
+#### Dim_Order_Time
 
-**Columns**
+Contains order timing information.
 
-- order_id
-- order_number
-- order_dow
-- order_hour_of_day
-- days_since_prior_order
+Purpose:
 
-### Fact Table
+- Analyze ordering behavior
+- Identify temporal trends
+- Support day-of-week and hour-of-day reporting
 
-#### fact_orders
+---
 
-Stores product-level order transactions.
+### Fact_Order
 
-**Columns**
+Contains transactional purchase events.
 
-- order_id
-- user_id
-- product_id
-- reordered
-- add_to_cart_order
+Purpose:
 
-### Star Schema
+- Record product purchases
+- Measure purchasing activity
+- Support aggregation and reporting
+
+---
+
+## Star Schema
 
 ```text
-                    dim_order_time
-                           │
-                           │
-dim_users ──── fact_orders ──── dim_products
+              Dim_Order_Time
+                   │
+                   │
+Dim_User ───── Fact_Order ───── Dim_Product
 ```
 
----
+### Why a Star Schema
 
-## How to Run
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/<your-username>/instacart-medallion-data-pipeline.git
-
-cd instacart-medallion-data-pipeline
-```
-
-### 2. Upload Source Files
-
-Upload the Instacart dataset to Databricks FileStore or cloud storage.
-
-Required files:
-
-```text
-orders.csv
-products.csv
-aisles.csv
-departments.csv
-order_products__prior.csv
-order_products__train.csv
-```
-
-### 3. Execute Bronze Layer
-
-Run Bronze ingestion scripts to:
-
-- Load CSV files
-- Create Delta tables
-- Capture ingestion metadata
-
-### 4. Execute Silver Layer
-
-Run Silver transformation scripts to:
-
-- Clean source data
-- Standardize schemas
-- Apply validation rules
-- Consolidate order-product datasets
-
-### 5. Execute Gold Layer
-
-Run Gold scripts to:
-
-- Create dimensions
-- Build the fact table
-- Produce analytics-ready datasets
-
----
-
-## Validation
-
-Data quality checks were performed throughout the pipeline.
-
-### Row Count Validation
-
-```sql
-SELECT COUNT(*) FROM bronze_products;
-SELECT COUNT(*) FROM clean_products;
-```
-
-### Duplicate Validation
-
-```sql
-SELECT product_id, COUNT(*)
-FROM clean_products
-GROUP BY product_id
-HAVING COUNT(*) > 1;
-```
-
-### Null Validation
-
-```sql
-SELECT COUNT(*)
-FROM clean_products
-WHERE product_id IS NULL;
-```
-
-### Referential Integrity Validation
-
-```sql
-SELECT *
-FROM fact_orders f
-LEFT JOIN dim_products p
-    ON f.product_id = p.product_id
-WHERE p.product_id IS NULL;
-```
-
-### Schema Validation
-
-```sql
-DESCRIBE TABLE dim_products;
-```
-
----
-
-## Decisions
-
-### Why Medallion Architecture?
-
-Medallion Architecture separates raw, cleaned, and business-ready data into distinct layers. This improves maintainability, traceability, and data quality management.
-
-### Why Delta Lake?
-
-Delta tables provide:
-
-- ACID transactions
-- Schema enforcement
-- Reliable ETL processing
-- Consistent data management
-
-### Why Dimensional Modeling?
-
-A star schema simplifies analytical queries by:
-
-- Reducing join complexity
-- Supporting BI and reporting tools
-- Improving query performance
-- Providing business-friendly datasets
-
-### Why Build Business Logic in Silver?
-
-Data integration and transformation logic were centralized in the Silver layer so that Gold tables could focus on analytical modeling rather than data preparation.
-
-### Incremental Loading Considerations
-
-This project uses a full-refresh strategy for simplicity and reproducibility.
-
-In a production environment, incremental processing could be implemented using `MERGE INTO` operations. Surrogate keys could be generated using identity columns or sequence-based approaches to support slowly changing dimensions and incremental fact table loading.
-
----
-
-## Repository Structure
-
-```text
-instacart-medallion-data-pipeline/
-│
-├── 01_bronze_ingest/
-│   ├── ingest_orders.sql
-│   ├── ingest_order_products_prior.sql
-│   ├── ingest_order_products_train.sql
-│   ├── ingest_products.sql
-│   ├── ingest_aisles.sql
-│   └── ingest_departments.sql
-│
-├── 02_silver_clean/
-│   ├── clean_orders.sql
-│   ├── clean_order_products.sql
-│   ├── clean_order_merge.sql
-│   ├── clean_products.sql
-│   ├── clean_aisles.sql
-│   └── clean_departments.sql
-│
-├── 03_gold_model/
-│   ├── dim_products.sql
-│   ├── dim_users.sql
-│   ├── dim_order_time.sql
-│   └── fact_orders.sql
-│
-├── validation/
-│   ├── bronze_validation.sql
-│   ├── silver_validation.sql
-│   └── gold_validation.sql
-│
-└── README.md
-```
-
----
-
-## Technologies Used
-
-- Databricks
-- Apache Spark
-- Delta Lake
-- SQL
-- Medallion Architecture
-- Dimensional Modeling
-- Git
-- GitHub
-
----
-
-## Outcome
-
-Successfully built an end-to-end ETL pipeline that transforms raw Instacart grocery order data into trusted, analytics-ready dimensional tables. The project demonstrates data ingestion, cleansing, integration, validation, and dimensional modeling using Databricks and Delta Lake following Medallion Architecture principles.
+The source Instacart
