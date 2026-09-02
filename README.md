@@ -258,9 +258,9 @@ While this structure works well for operational systems, answering business ques
 To improve usability, the final Gold layer was modeled as a star schema.
 
 ```text
-                    Dim_Order_Time
-                           │
-                           │
+            Dim_Order_Time
+                  │
+                  │
 Dim_User ───── Fact_Order ───── Dim_Product
 ```
 
