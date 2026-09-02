@@ -16,7 +16,7 @@ Key objectives include:
 
 ## Architecture
 
-The pipeline follows a Medallion Architecture approach:
+The pipeline follows a Medallion Architecture (Bronze → Silver → Gold) pattern, progressively transforming raw source files into analytics-ready datasets.
 
 ```text
 Raw CSV Files
@@ -44,47 +44,94 @@ Raw CSV Files
 
 ### Bronze Layer
 
+The Bronze layer preserves the original Instacart source files with minimal transformation.
+
+Source tables:
+
+- orders
+- order_products_prior
+- order_products_train
+- products
+- aisles
+- departments
+
 Purpose:
 
-- Ingest raw source files
-- Preserve source data
-- Add ingestion metadata
-- Support data lineage and auditing
+- Preserve raw source data
+- Maintain data lineage
+- Support reprocessing when needed
 
-Tables:
-
-- bronze_orders
-- bronze_order_products_prior
-- bronze_order_products_train
-- bronze_products
-- bronze_aisles
-- bronze_departments
+---
 
 ### Silver Layer
 
-Purpose:
+The Silver layer applies cleansing, standardization, and business transformations.
 
-- Standardize data types
-- Remove duplicates
-- Handle null and invalid values
-- Apply business validation rules
+Tables created:
 
-Tables:
+- clean_orders
+- clean_order_products
+- clean_products
+- clean_aisles
+- clean_departments
 
-- silver_orders
-- silver_order_products_prior
-- silver_order_products_train
-- silver_products
-- silver_aisles
-- silver_departments
+#### Why were `order_products_prior` and `order_products_train` merged?
+
+The Instacart dataset separates product-order relationships into two files:
+
+- `order_products_prior`
+- `order_products_train`
+
+Both datasets share the same structure and contain product-level order information.
+
+Since this project focuses on building a unified analytics layer rather than a machine learning training workflow, the two datasets were combined into a single Silver table:
+
+```text
+order_products_prior
+           +
+order_products_train
+           │
+           ▼
+clean_order_products
+```
+
+Benefits:
+
+- Simplifies downstream transformations
+- Eliminates duplicate pipeline logic
+- Provides a single source of truth for product-order relationships
+- Makes Gold layer fact table creation easier
+
+#### Why were Orders and Order Products Combined?
+
+After cleaning, the product-order records were joined with order-level information to create a consolidated transactional dataset.
+
+```text
+clean_orders
+      +
+clean_order_products
+      │
+      ▼
+clean_order_merge
+```
+
+This allows order attributes such as:
+
+- user_id
+- order_number
+- order_dow
+- order_hour_of_day
+- days_since_prior_order
+
+to be associated directly with purchased products.
+
+The resulting dataset serves as the primary source for creating analytics-ready fact tables in the Gold layer.
+
+---
 
 ### Gold Layer
 
-Purpose:
-
-- Create analytics-ready datasets
-- Build dimensional models
-- Support reporting and dashboard development
+The Gold layer contains business-ready dimensional models optimized for reporting and analysis.
 
 Tables:
 
@@ -92,6 +139,8 @@ Tables:
 - dim_aisles
 - dim_departments
 - fact_orders
+
+The fact table is sourced from `clean_order_merge`, while dimension tables are sourced from the cleaned Silver entities.
 
 ---
 
