@@ -258,4 +258,43 @@ Dim_User ───── Fact_Order ───── Dim_Product
 
 ### Why a Star Schema
 
-The source Instacart
+The source Instacart dataset is highly normalized because it was designed to store transactional data efficiently.
+
+While this structure works well for operational systems, answering business questions often requires joining multiple tables together. As the number of tables grows, queries become more complex and harder to maintain.
+
+To improve usability, the final Gold layer was modeled as a star schema.
+
+```text
+                    Dim_Order_Time
+                           │
+                           │
+Dim_User ───── Fact_Order ───── Dim_Product
+```
+
+In this design:
+
+- Fact_Order stores the business events, which are individual product purchases within orders.
+- Dim_Product provides descriptive information about products.
+- Dim_User provides customer-level context.
+- Dim_Order_Time provides the temporal attributes needed for trend analysis.
+
+Separating facts and dimensions makes it easier to answer business questions because analysts can focus on the information they need without repeatedly rebuilding complex joins.
+
+Benefits of this approach include:
+
+- Simpler analytical queries
+- Easier dashboard and report development
+- Clear separation between transactions and descriptive attributes
+- Better support for aggregations and business metrics
+- Improved maintainability as the model evolves
+
+For example, questions such as:
+
+- Which products are purchased most frequently?
+- Which departments generate the most purchases?
+- When are customers most likely to place orders?
+- Which products have the highest reorder rates?
+
+can be answered directly from the dimensional model without navigating the complexity of the original source schema.
+
+The Gold layer therefore serves as the business-facing representation of the Instacart dataset, optimized for analysis rather than transaction processing.
