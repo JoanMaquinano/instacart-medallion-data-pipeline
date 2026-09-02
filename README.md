@@ -249,13 +249,6 @@ Purpose:
 
 ## Star Schema
 
-```text
-              Dim_Order_Time
-                   │
-                   │
-Dim_User ───── Fact_Order ───── Dim_Product
-```
-
 ### Why a Star Schema
 
 The source Instacart dataset is highly normalized because it was designed to store transactional data efficiently.
