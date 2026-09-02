@@ -75,17 +75,20 @@ Tables created:
 - clean_aisles
 - clean_departments
 
-#### Why were `order_products_prior` and `order_products_train` merged?
+### Combining Prior and Train Order Products
 
-The Instacart dataset separates product-order relationships into two files:
+The Instacart dataset was originally designed for a machine learning competition and separates product-level order records into two files:
 
-- `order_products_prior`
-- `order_products_train`
+- `order_products__prior`
+- `order_products__train`
 
-Both datasets share the same structure and contain product-level order information.
+The `prior` dataset contains historical customer purchases, while the `train` dataset contains the products purchased in customers' next orders and serves as the labeled target data for model training.
 
-Since this project focuses on building a unified analytics layer rather than a machine learning training workflow, the two datasets were combined into a single Silver table:
+Since this project focuses on analytics engineering rather than predictive modeling, both datasets were combined into a single Silver-layer table (`clean_order_products`). This provides a unified view of product transactions while preserving all available purchase history.
 
+The `test` dataset was not included because product-level records are not provided in the source dataset.
+
+This approach simplifies downstream transformations and supports dimensional modeling and business analysis without requiring separate processing logic for machine learning datasets.
 ```text
 order_products_prior
            +
