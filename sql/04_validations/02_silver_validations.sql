@@ -1,4 +1,4 @@
--- Validation Summary
+-- Aisles validation
 SELECT
     (SELECT COUNT(*) FROM instacart.instacart_bronze.aisles_bronze) AS bronze_row_count,
     (SELECT COUNT(*) FROM instacart.instacart_silver.aisles_silver) AS clean_row_count,
